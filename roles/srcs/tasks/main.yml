@@ -1,0 +1,69 @@
+---
+- name: Activer universe pour avoir containerd
+  apt_repository:
+    repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
+    state: present
+- name: Mettre à jour le cache APT
+  apt:
+    update_cache: yes
+- name: Installer containerd + docker.io
+  apt:
+    name:
+      - containerd
+      - docker.io
+    state: present
+
+- name: Installer Docker Compose
+  apt:
+    name: docker-compose
+    state: present
+
+- name: Créer le dossier Inception
+  file:
+    path: /home/ubuntu/inception
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: Installer rsync (si besoin)
+  apt:
+    name: rsync
+    state: present
+    update_cache: true
+
+- name: Créer le fichier .env avec TAG
+  copy:
+    content: |
+      TAG=latest
+    dest: /home/ubuntu/inception/.env
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'
+
+- name: Ajouter ubuntu au groupe docker
+  become: true
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes
+
+- name: Reboot de la VM pour prendre en compte le nouveau groupe
+  become: true
+  reboot:
+    msg: "Reboot après ajout ubuntu au groupe docker"
+    pre_reboot_delay: 5
+    reboot_timeout: 300
+
+- name: Synchroniser le projet Inception vers la VM
+  synchronize:
+    src: "{{ playbook_dir }}/roles/srcs/files/inception/"
+    dest: /home/ubuntu/inception/
+    recursive: yes
+  delegate_to: localhost
+  become: false
+
+- name: Démarrer les conteneurs Docker
+  shell: docker-compose up -d
+  args:
+    chdir: /home/ubuntu/inception

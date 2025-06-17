@@ -1,0 +1,81 @@
+version: '3'
+
+services:
+  nginx:
+    image: nginx:$TAG
+    build: requirements/nginx
+    container_name: nginx
+    ports:
+      - "443:443"
+    depends_on:
+      - wordpress
+    networks:
+      - inception
+    volumes:
+      - wp_data:/var/www/wordpress
+    restart: always
+    env_file: .env
+
+  mariadb:
+    image: mariadb:$TAG
+    build: requirements/mariadb
+    container_name: mariadb
+    # ports:
+    #   - "3306:3306"
+    networks:
+      - inception
+    volumes:
+      - db_data3:/var/lib/mysql
+    restart: always
+    env_file: .env
+    # healthcheck:
+    #   test: ["executable", "arg", ""] # mysqladmin
+    #   interval:    # volumes:
+    #   - wp_data:/var/www/wordpress 5s
+    #   timeout: 30s
+    #   retries: 6
+    #   start_period: 4s
+
+  wordpress:
+    image: wordpress:$TAG
+    build: requirements/wordpress
+    container_name: wordpress
+    ports:
+      - "9000:9000"
+    depends_on:
+      - mariadb
+    networks:
+      - inception
+    volumes:
+      - wp_data:/var/www/wordpress
+    restart: always
+    env_file: .env
+  #   # healthcheck:
+  #     # test: ["executable", "arg"] # cgi-fcgi
+  #     # interval: 5s
+  #     # timeout: 30s
+  #     # retries: 6
+  #     # start_period: 4s
+
+networks:
+  inception:
+
+# volumes:
+  # db_data3:
+  #   # name: db_data3
+  #   driver: local
+  #   driver_opts:
+  #     type: none
+  #     o: bind
+  #     device: /home/estoffel/data/mariadb
+
+  # wp_data:
+  #   # name: wp_data
+  #   driver: local
+  #   driver_opts:
+  #     type: none
+  #     o: bind
+  #     device: /home/estoffel/data/wordpress
+volumes:
+  db_data3:
+  wp_data:

@@ -1,0 +1,7 @@
+- name: Déployer Inception sur Scaleway
+  hosts: scaleway
+  become: true
+
+  roles:
+    - srcs
+
