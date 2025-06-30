@@ -31,7 +31,7 @@ services:
     # healthcheck:
     #   test: ["executable", "arg", ""] # mysqladmin
     #   interval:    # volumes:
-    #   - wp_data:/var/www/wordpress 5s
+    #   - wp_data:/var/www/html/wordpress 5s
     #   timeout: 30s
     #   retries: 6
     #   start_period: 4s
@@ -60,22 +60,17 @@ services:
 networks:
   inception:
 
-# volumes:
-  # db_data3:
-  #   # name: db_data3
-  #   driver: local
-  #   driver_opts:
-  #     type: none
-  #     o: bind
-  #     device: /home/estoffel/data/mariadb
-
-  # wp_data:
-  #   # name: wp_data
-  #   driver: local
-  #   driver_opts:
-  #     type: none
-  #     o: bind
-  #     device: /home/estoffel/data/wordpress
 volumes:
   db_data3:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ubuntu/inception/mariadb
+
   wp_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ubuntu/inception/wordpress

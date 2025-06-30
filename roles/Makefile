@@ -1,8 +1,6 @@
-COMPOSE	= docker-compose -f ./srcs/docker-compose.yml
+COMPOSE	= sudo docker-compose -f ./srcs/docker-compose.yml
 
 all:
-	mkdir -p /home/estoffel/data/wordpress
-	mkdir -p /home/estoffel/data/mariadb
 	make build
 	make up
 
@@ -48,10 +46,8 @@ stop:
 restart: stop build up
 
 prune:
-	docker volume prune --force
+	sudo docker volume prune --force
 
 re: down prune build up
-	@mkdir -p /home/estoffel/data/wordpress
-	@mkdir -p /home/estoffel/data/mariadb
 
 .PHONY: build up start ps logs down stop restart prune re

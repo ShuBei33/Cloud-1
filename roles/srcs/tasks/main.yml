@@ -3,9 +3,11 @@
   apt_repository:
     repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
     state: present
+
 - name: Mettre à jour le cache APT
   apt:
     update_cache: yes
+
 - name: Installer containerd + docker.io
   apt:
     name:
@@ -26,20 +28,22 @@
     group: ubuntu
     mode: '0755'
 
+- name: Créer les dossiers de volumes pour les containers
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+  loop:
+    - /home/ubuntu/inception/mariadb
+    - /home/ubuntu/inception/wordpress
+
 - name: Installer rsync (si besoin)
   apt:
     name: rsync
     state: present
     update_cache: true
-
-- name: Créer le fichier .env avec TAG
-  copy:
-    content: |
-      TAG=latest
-    dest: /home/ubuntu/inception/.env
-    owner: ubuntu
-    group: ubuntu
-    mode: '0644'
 
 - name: Ajouter ubuntu au groupe docker
   become: true
@@ -62,6 +66,63 @@
     recursive: yes
   delegate_to: localhost
   become: false
+
+- name: Copier le fichier .env s’il existe localement
+  copy:
+    src: "{{ playbook_dir }}/roles/srcs/files/.env"
+    dest: /home/ubuntu/inception/.env
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'
+  ignore_errors: true
+
+- name: Lister les volumes Docker existants
+  shell: docker volume ls -q
+  register: docker_volumes
+
+- name: Récupérer les conteneurs qui utilisent le volume db_data3
+  shell: |
+    docker ps -a --filter volume=inception_db_data3 --format {{ '{{.ID}}' }}
+  register: containers_using_db
+  changed_when: false
+
+- name: Arrêter les conteneurs qui utilisent le volume db_data3 (si besoin)
+  shell: docker stop {{ item }}
+  loop: "{{ containers_using_db.stdout_lines }}"
+  when: containers_using_db.stdout_lines | length > 0
+  ignore_errors: true
+
+- name: Supprimer les conteneurs qui utilisent le volume db_data3
+  shell: docker rm {{ item }}
+  loop: "{{ containers_using_db.stdout_lines }}"
+  when: containers_using_db.stdout_lines | length > 0
+  ignore_errors: true
+
+- name: Supprimer le volume db_data3
+  shell: docker volume rm inception_db_data3
+  ignore_errors: true
+
+- name: Récupérer les conteneurs qui utilisent le volume wp_data
+  shell: |
+    docker ps -a --filter volume=inception_wp_data --format {{ '{{.ID}}' }}
+  register: containers_using_db
+  changed_when: false
+
+- name: Arrêter les conteneurs qui utilisent le volume wp_data (si besoin)
+  shell: docker stop {{ item }}
+  loop: "{{ containers_using_db.stdout_lines }}"
+  when: containers_using_db.stdout_lines | length > 0
+  ignore_errors: true
+
+- name: Supprimer les conteneurs qui utilisent le volume wp_data
+  shell: docker rm {{ item }}
+  loop: "{{ containers_using_db.stdout_lines }}"
+  when: containers_using_db.stdout_lines | length > 0
+  ignore_errors: true
+
+- name: Supprimer le volume wp_data
+  shell: docker volume rm inception_wp_data
+  ignore_errors: true
 
 - name: Démarrer les conteneurs Docker
   shell: docker-compose up -d
