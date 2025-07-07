@@ -80,26 +80,29 @@
   shell: docker volume ls -q
   register: docker_volumes
 
-- name: Récupérer les conteneurs qui utilisent le volume db_data3
+- name: Récupérer les conteneurs qui utilisent le volume mariadb_data
+
   shell: |
-    docker ps -a --filter volume=inception_db_data3 --format {{ '{{.ID}}' }}
+    docker ps -a --filter volume=inception_mariadb_data  --format {{ '{{.ID}}' }}
   register: containers_using_db
   changed_when: false
 
-- name: Arrêter les conteneurs qui utilisent le volume db_data3 (si besoin)
+- name: Arrêter les conteneurs qui utilisent le volume mariadb_data (si besoin)
   shell: docker stop {{ item }}
   loop: "{{ containers_using_db.stdout_lines }}"
   when: containers_using_db.stdout_lines | length > 0
   ignore_errors: true
 
-- name: Supprimer les conteneurs qui utilisent le volume db_data3
+- name: Supprimer les conteneurs qui utilisent le volume mariadb_data
+
   shell: docker rm {{ item }}
   loop: "{{ containers_using_db.stdout_lines }}"
   when: containers_using_db.stdout_lines | length > 0
   ignore_errors: true
 
-- name: Supprimer le volume db_data3
-  shell: docker volume rm inception_db_data3
+- name: Supprimer le volume mariadb_data
+
+  shell: docker volume rm inception_mariadb_data
   ignore_errors: true
 
 - name: Récupérer les conteneurs qui utilisent le volume wp_data
@@ -128,3 +131,48 @@
   shell: docker-compose up -d
   args:
     chdir: /home/ubuntu/inception
+
+# - name: Ajouter WP_HOME et WP_SITEURL dans wp-config.php
+#   shell: |
+#     docker exec wordpress sh -c "echo \"define('WP_HOME', 'https://cloud1-rhes.duckdns.org');\" >> /var/www/wordpress/wp-config.php"
+#     docker exec wordpress sh -c "echo \"define('WP_SITEURL', 'https://cloud1-rhes.duckdns.org');\" >> /var/www/wordpress/wp-config.php"
+#   args:
+#     executable: /bin/bash
+
+# - name: Ajouter WP_HOME et WP_SITEURL dans wp-config.php
+#   shell: |
+#     docker exec wordpress sh -c "echo \"define('WP_HOME', 'https://cloud1-rhes.duckdns.org');\" >> /var/www/wordpress/wp-config.php"
+#     docker exec wordpress sh -c "echo \"define('WP_SITEURL', 'https://cloud1-rhes.duckdns.org');\" >> /var/www/wordpress/wp-config.php"
+#   args:
+#     executable: /bin/bash
+
+# - name: Vérifier que WP_HOME est bien défini dans wp-config.php
+#   shell: docker exec wordpress grep "WP_HOME" /var/www/wordpress/wp-config.php
+#   register: wp_home_check
+#   failed_when: "'WP_HOME' not in wp_home_check.stdout"
+
+# - name: Supprimer nano du conteneur WordPress (pour le cleanup)
+#   shell: docker exec wordpress apk del nano
+#   when: debug_mode is defined and debug_mode
+
+# - name: Copier un wp-config.php propre dans la VM
+#   copy:
+#     src: roles/srcs/files/inception/requirements/wordpress/conf/wp-config.php
+#     dest: /home/ubuntu/inception/wordpress/wp-config.php
+#     owner: ubuntu
+#     group: ubuntu
+#     mode: '0644'
+
+# - name: Copier wp-config.php propre dans le conteneur WordPress
+#   shell: docker cp /home/ubuntu/inception/wordpress/wp-config.php wordpress:/var/www/wordpress/wp-config.php
+
+# - name: Ajouter WP_HOME et WP_SITEURL si wp-config existe
+#   shell: |
+#     docker exec wordpress sh -c '
+#       if [ -f /var/www/wordpress/wp-config.php ]; then
+#         grep -q "WP_HOME" /var/www/wordpress/wp-config.php || echo "define(\"WP_HOME\", \"https://cloud1-rhes.duckdns.org\");" >> /var/www/wordpress/wp-config.php
+#         grep -q "WP_SITEURL" /var/www/wordpress/wp-config.php || echo "define(\"WP_SITEURL\", \"https://cloud1-rhes.duckdns.org\");" >> /var/www/wordpress/wp-config.php
+#       fi
+#     '
+#   args:
+#     executable: /bin/bash

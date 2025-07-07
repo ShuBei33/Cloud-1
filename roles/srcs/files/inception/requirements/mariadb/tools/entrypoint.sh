@@ -9,9 +9,9 @@ if [ -d /var/lib/mysql/mysql ]; then
 	exit 1
 fi
 
-echo "Installing..."
-mkdir -p /var/lib/mysql
-chown -R mysql:mysql /var/lib/mysql
+echo "Installing MariaDB..."
+# mkdir -p /var/lib/mysql
+# chown -R mysql:mysql /var/lib/mysql
 
 mariadb-install-db --auth-root-authentication-method=normal --basedir=/usr --datadir=/var/lib/mysql --skip-test-db --user=mysql
 

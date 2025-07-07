@@ -44,6 +44,7 @@ wp option update siteurl	"https://$DOMAIN_NAME" \
 wp option update home 		"https://$DOMAIN_NAME" \
 							--allow-root
 
+chown -R www-data:www-data /var/www/wordpress
 
 mkdir -p /run/php
 
