@@ -132,47 +132,32 @@
   args:
     chdir: /home/ubuntu/inception
 
-# - name: Ajouter WP_HOME et WP_SITEURL dans wp-config.php
-#   shell: |
-#     docker exec wordpress sh -c "echo \"define('WP_HOME', 'https://cloud1-rhes.duckdns.org');\" >> /var/www/wordpress/wp-config.php"
-#     docker exec wordpress sh -c "echo \"define('WP_SITEURL', 'https://cloud1-rhes.duckdns.org');\" >> /var/www/wordpress/wp-config.php"
-#   args:
-#     executable: /bin/bash
+- name: Installer curl dans le conteneur WordPress
+  shell: docker exec wordpress apk add --no-cache curl
+  args:
+    executable: /bin/bash
 
-# - name: Ajouter WP_HOME et WP_SITEURL dans wp-config.php
-#   shell: |
-#     docker exec wordpress sh -c "echo \"define('WP_HOME', 'https://cloud1-rhes.duckdns.org');\" >> /var/www/wordpress/wp-config.php"
-#     docker exec wordpress sh -c "echo \"define('WP_SITEURL', 'https://cloud1-rhes.duckdns.org');\" >> /var/www/wordpress/wp-config.php"
-#   args:
-#     executable: /bin/bash
+- name: Installer WP-CLI dans le conteneur WordPress
+  shell: |
+    docker exec wordpress sh -c "\
+      curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
+      chmod +x wp-cli.phar && \
+      mv wp-cli.phar /usr/local/bin/wp"
+  args:
+    executable: /bin/bash
 
-# - name: Vérifier que WP_HOME est bien défini dans wp-config.php
-#   shell: docker exec wordpress grep "WP_HOME" /var/www/wordpress/wp-config.php
-#   register: wp_home_check
-#   failed_when: "'WP_HOME' not in wp_home_check.stdout"
+- name: Attendre que wp-config.php soit présent dans le conteneur
+  shell: docker exec wordpress test -f /var/www/wordpress/wp-config.php
+  register: wp_config_check
+  retries: 10
+  delay: 5
+  until: wp_config_check.rc == 0
 
-# - name: Supprimer nano du conteneur WordPress (pour le cleanup)
-#   shell: docker exec wordpress apk del nano
-#   when: debug_mode is defined and debug_mode
-
-# - name: Copier un wp-config.php propre dans la VM
-#   copy:
-#     src: roles/srcs/files/inception/requirements/wordpress/conf/wp-config.php
-#     dest: /home/ubuntu/inception/wordpress/wp-config.php
-#     owner: ubuntu
-#     group: ubuntu
-#     mode: '0644'
-
-# - name: Copier wp-config.php propre dans le conteneur WordPress
-#   shell: docker cp /home/ubuntu/inception/wordpress/wp-config.php wordpress:/var/www/wordpress/wp-config.php
-
-# - name: Ajouter WP_HOME et WP_SITEURL si wp-config existe
-#   shell: |
-#     docker exec wordpress sh -c '
-#       if [ -f /var/www/wordpress/wp-config.php ]; then
-#         grep -q "WP_HOME" /var/www/wordpress/wp-config.php || echo "define(\"WP_HOME\", \"https://cloud1-rhes.duckdns.org\");" >> /var/www/wordpress/wp-config.php
-#         grep -q "WP_SITEURL" /var/www/wordpress/wp-config.php || echo "define(\"WP_SITEURL\", \"https://cloud1-rhes.duckdns.org\");" >> /var/www/wordpress/wp-config.php
-#       fi
-#     '
-#   args:
-#     executable: /bin/bash
+- name: Remplacer les URLs dans WordPress
+  shell: >
+    docker exec wordpress wp search-replace 'https://estoffel.42.fr' 'https://cloud1-rhes.duckdns.org' --path=/var/www/wordpress --allow-root
+  register: wp_replace
+  failed_when: "'Error' in wp_replace.stderr"
+  changed_when: "'https://cloud1-rhes.duckdns.org' in wp_replace.stdout"
+  args:
+    executable: /bin/bash
