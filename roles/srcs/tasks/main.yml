@@ -1,4 +1,7 @@
 ---
+# DEPLOIEMENT CLOUD-1 - INSTALLATION INFRA & WORDPRESS
+
+# Dépôts et paquets de base
 - name: Activer universe pour avoir containerd
   apt_repository:
     repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
@@ -8,18 +11,20 @@
   apt:
     update_cache: yes
 
-- name: Installer containerd + docker.io
+- name: Installer containerd + docker.io + docker-compose
   apt:
     name:
       - containerd
       - docker.io
+      - docker-compose
     state: present
 
-- name: Installer Docker Compose
+- name: Installer rsync
   apt:
-    name: docker-compose
+    name: rsync
     state: present
 
+# Préparation des dossiers projet & volumes
 - name: Créer le dossier Inception
   file:
     path: /home/ubuntu/inception
@@ -39,12 +44,7 @@
     - /home/ubuntu/inception/mariadb
     - /home/ubuntu/inception/wordpress
 
-- name: Installer rsync (si besoin)
-  apt:
-    name: rsync
-    state: present
-    update_cache: true
-
+# Ajouter ubuntu au groupe docker
 - name: Ajouter ubuntu au groupe docker
   become: true
   user:
@@ -52,6 +52,7 @@
     groups: docker
     append: yes
 
+# Reboot nécessaire après ajout au groupe
 - name: Reboot de la VM pour prendre en compte le nouveau groupe
   become: true
   reboot:
@@ -59,6 +60,7 @@
     pre_reboot_delay: 5
     reboot_timeout: 300
 
+# Synchronisation des fichiers projet
 - name: Synchroniser le projet Inception vers la VM
   synchronize:
     src: "{{ playbook_dir }}/roles/srcs/files/inception/"
@@ -67,6 +69,7 @@
   delegate_to: localhost
   become: false
 
+# Copier le .env si présent
 - name: Copier le fichier .env s’il existe localement
   copy:
     src: "{{ playbook_dir }}/roles/srcs/files/.env"
@@ -76,76 +79,30 @@
     mode: '0644'
   ignore_errors: true
 
-- name: Lister les volumes Docker existants
-  shell: docker volume ls -q
-  register: docker_volumes
+# Purge complète des volumes - À activer avec -e reset_volumes=true
+- name: Purge complète des volumes si demandé (reset_volumes=true)
+  shell: docker-compose down -v
+  args:
+    chdir: /home/ubuntu/inception
+  when: reset_volumes | default(false)
 
-- name: Récupérer les conteneurs qui utilisent le volume mariadb_data
-
-  shell: |
-    docker ps -a --filter volume=inception_mariadb_data  --format {{ '{{.ID}}' }}
-  register: containers_using_db
-  changed_when: false
-
-- name: Arrêter les conteneurs qui utilisent le volume mariadb_data (si besoin)
-  shell: docker stop {{ item }}
-  loop: "{{ containers_using_db.stdout_lines }}"
-  when: containers_using_db.stdout_lines | length > 0
-  ignore_errors: true
-
-- name: Supprimer les conteneurs qui utilisent le volume mariadb_data
-
-  shell: docker rm {{ item }}
-  loop: "{{ containers_using_db.stdout_lines }}"
-  when: containers_using_db.stdout_lines | length > 0
-  ignore_errors: true
-
-- name: Supprimer le volume mariadb_data
-
-  shell: docker volume rm inception_mariadb_data
-  ignore_errors: true
-
-- name: Récupérer les conteneurs qui utilisent le volume wp_data
-  shell: |
-    docker ps -a --filter volume=inception_wp_data --format {{ '{{.ID}}' }}
-  register: containers_using_db
-  changed_when: false
-
-- name: Arrêter les conteneurs qui utilisent le volume wp_data (si besoin)
-  shell: docker stop {{ item }}
-  loop: "{{ containers_using_db.stdout_lines }}"
-  when: containers_using_db.stdout_lines | length > 0
-  ignore_errors: true
-
-- name: Supprimer les conteneurs qui utilisent le volume wp_data
-  shell: docker rm {{ item }}
-  loop: "{{ containers_using_db.stdout_lines }}"
-  when: containers_using_db.stdout_lines | length > 0
-  ignore_errors: true
-
-- name: Supprimer le volume wp_data
-  shell: docker volume rm inception_wp_data
-  ignore_errors: true
-
+# Lancer les conteneurs Docker
 - name: Démarrer les conteneurs Docker
   shell: docker-compose up -d
   args:
     chdir: /home/ubuntu/inception
 
-- name: Installer curl dans le conteneur WordPress
-  shell: docker exec wordpress apk add --no-cache curl
-  args:
-    executable: /bin/bash
-
-- name: Installer WP-CLI dans le conteneur WordPress
+# Installer WP-CLI si absent dans le conteneur WordPress
+- name: Installer WP-CLI dans le conteneur WordPress (si absent)
   shell: |
     docker exec wordpress sh -c "\
-      curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
-      chmod +x wp-cli.phar && \
-      mv wp-cli.phar /usr/local/bin/wp"
+      [ -x /usr/local/bin/wp ] || \
+      (curl -s -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
+       chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp)"
   args:
     executable: /bin/bash
 
+# Attendre que wp-config.php soit prêt dans le conteneur
 - name: Attendre que wp-config.php soit présent dans le conteneur
   shell: docker exec wordpress test -f /var/www/wordpress/wp-config.php
   register: wp_config_check
@@ -153,6 +110,7 @@
   delay: 5
   until: wp_config_check.rc == 0
 
+# Remplacer les URLs du site (si estoffel est encore présent)
 - name: Remplacer les URLs dans WordPress
   shell: >
     docker exec wordpress wp search-replace 'https://estoffel.42.fr' 'https://cloud1-rhes.duckdns.org' --path=/var/www/wordpress --allow-root
